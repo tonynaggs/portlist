@@ -26,6 +26,7 @@ pairs (Vendor & Product Ids).
 
 As of the first public release, version 0.9, the available options reported through
 'portlist /h' are:
+
     portlist - COM & LPT port listing utility - version 0.9
 	        Copyright (c) 2013, 2014 Anthony Naggs
 
@@ -54,11 +55,12 @@ As of the first public release, version 0.9, the available options reported thro
 			portlist /vid 0403          : match FTDI's Vendor ID (to find USB serial bridge chips)
 			portlist -vid 4e8 -vid 421  : match either Samsung or Nokia VIDs
 
-
 I hope you find this program useful, and welcome feedback on bugs & omissions.
 
 As of portlist version 0.9 the program is compiled with Microsoft Visual Studio 2010.
 
+GPL v2 Copyright
+================
 
 Limited assignment of rights through the GNU General Public License version 2
 is described below:
@@ -76,3 +78,65 @@ is described below:
     You should have received a copy of the GNU General Public License along
     with this program; if not, write to the Free Software Foundation, Inc.,
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+Examples of portlist usage
+==========================
+
+Examples show two Microchip based dev boards connected, a USB Bit Whacker (UBW32)
+with the default Microchip USB to serial VID & PID, and an Aperture Labs
+RFIDler LF prototype.
+
+Normal brief mode
+Note that A (Active) column is only shown when -a option is given to include
+remebered as well as active ports in the list.
+
+	C:\>portlist
+	Port   Description
+	COM3   USB Serial (UBW-based) communi
+	COM4   USB Serial Port
+    
+	2 ports found.
+
+	C:\>portlist -a
+	Port   A Description
+	COM3   Y USB Serial (UBW-based) communi
+	COM4   Y USB Serial Port
+    
+	2 ports found.
+
+Longer 1 line per port mode.
+Note again that A (Active) column is only shown when -a option is given to
+include remembered as well as active ports in the list.
+
+	C:\>portlist -l
+	Port    Bus    VID  PID  Rev  Product, Vendor
+	COM3    USB    04D8 000A 0100 USB Serial (UBW-based) communi, SchmalzHaus LLC
+	COM4    USB    1D50 6098 0020 USB Serial Port, Aperture Labs Ltd.
+
+	2 ports found.
+
+	C:\>portlist -l -a
+	Port    A Bus    VID  PID  Rev  Product, Vendor
+	COM3    Y USB    04D8 000A 0100 USB Serial (UBW-based) communi, SchmalzHaus LLC
+	COM4    Y USB    1D50 6098 0020 USB Serial Port, Aperture Labs Ltd.
+
+	2 ports found.
+
+Verbose mode
+
+	C:\>portlist -v
+	Port    A Bus    VID  PID  Rev  Product, Vendor
+	COM3    Y USB    04D8 000A 0100 USB Serial (UBW-based) communi, SchmalzHaus LLC
+			  Device Class: Ports
+			  Hardware Id: USB\VID_04D8&PID_000A&REV_0100
+			  Physical Device Object: \Device\USBPDO-7
+			  Location Info: Port_#0001.Hub_#0001
+
+	COM4    Y USB    1D50 6098 0020 USB Serial Port, Aperture Labs Ltd.
+			  Device Class: Ports
+			  Hardware Id: USB\VID_1D50&PID_6098&REV_0020
+			  Physical Device Object: \Device\USBPDO-8
+			  Location Info: Port_#0001.Hub_#0004
+
+    2 ports found.
+
