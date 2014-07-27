@@ -34,6 +34,8 @@
     Indentation is always spaces not tabs, for readable code in different tools.
 
     History:
+    2014-07-27 AMN v0.9.2 Fix bug when extracting USB attributes for device: VID, PID & REV
+
     2014-07-27 AMN v0.9.1 Minor fixes and code tidying.
                     Active column should only be shown when All (-a) or
                     Verbose (-v) flags are given by the user.
@@ -96,7 +98,7 @@ const unsigned True = 1;
 
 // common substrings collected for ease of maintenance
 const wchar_t* progname_msg = L"portlist";
-const wchar_t* version_msg = L"0.9.1";
+const wchar_t* version_msg = L"0.9.2";
 const wchar_t* copyright_msg = L"Copyright (c) 2013, 2014 Anthony Naggs";
 const wchar_t* homeurl_msg = L"https://github.com/tonynaggs/portlist";
 
@@ -310,7 +312,7 @@ void getverboseportinfo(HKEY devkey, PortInfo* pInfo);
 PortInfo* getdevicesetupinfo(HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData, unsigned opt_flags);
 wchar_t* portstringproperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData, DWORD devprop);
 wchar_t* wcs_dupsubstr(const wchar_t* string, size_t length);
-Bool wcs_seekul(wchar_t** pString, const wchar_t* SubStr, unsigned long* pOutValue, int Radix);
+Bool wcs_istr_toul(wchar_t** pString, const wchar_t* SubStr, unsigned long* pOutValue, int Radix);
 Bool getportdetails(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData, PortInfo* pInfo);
 int portcmp(PortInfo* p1, PortInfo* p2);
 Bool getdeviceinfo(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData);
@@ -807,19 +809,34 @@ wchar_t* wcs_dupsubstr(const wchar_t* string, size_t length)
 }
 
 
-// combine wcsstr() [= wcswcs()] and wcstoul()
-Bool wcs_seekul(wchar_t** pString, const wchar_t* SubStr, unsigned long* pOutValue, int Radix)
+// combine case insensitive string search [was wcsstr()] and wcstoul()
+Bool wcs_istr_toul(wchar_t** pString, const wchar_t* SubStr, unsigned long* pOutValue, int Radix)
 {
-    wchar_t* match = *pString;
+    wchar_t* match = NULL;
+    wchar_t* scanstr = *pString;
     
-    if (match && SubStr) {
-        // find substring
-        match = wcsstr(match, SubStr);
+    if (scanstr) {
+        if (!SubStr || (SubStr[0] == L'\0')) {
+            // match to start of string
+            match = scanstr;
+        } else {
+            // find substring
+            size_t len1 = wcslen(SubStr);
+            size_t len2 = wcslen(scanstr);
+
+            while ((*scanstr != L'\0') && (len2 > len1)) {
+                if (!wcsnicmp(scanstr, SubStr, len1)) {
+                    match = scanstr + len1;
+                    break;
+                }
+                scanstr++;
+                len2--;
+            }
+        }
     }
 
     if (match) {
         // read following characters to get value
-        match += wcslen(SubStr);
         *pOutValue = wcstoul(match, pString, Radix);
         if (match != *pString) {
             return True;
@@ -926,16 +943,16 @@ Bool getportdetails(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceI
                 str += bus_len;
             }
 
-            if (wcs_seekul(&str, L"\\VID_", &(pInfo->vendorId), 16)) {
+            if (wcs_istr_toul(&str, L"\\VID_", &(pInfo->vendorId), 16)) {
                 pInfo->retrieved |= RETRIEVED_VENDOR_ID;
 
-                if (wcs_seekul(&str, L"PID_", &(pInfo->productId), 16)) {
+                if (wcs_istr_toul(&str, L"&PID_", &(pInfo->productId), 16)) {
                     pInfo->retrieved |= RETRIEVED_PRODUCT_ID;
                     if ( (pInfo->vendorId < 0x10000) && (pInfo->productId < 0x10000) ) {
                         pInfo->isUSB = True;
                     }
 
-                    if (wcs_seekul(&str, L"REV_", &(pInfo->revision), 16)) {
+                    if (wcs_istr_toul(&str, L"&REV_", &(pInfo->revision), 16)) {
                         pInfo->retrieved |= RETRIEVED_REV;
                     }
                 }

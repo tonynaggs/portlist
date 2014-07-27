@@ -24,7 +24,7 @@ the reported list can also be limited to selected USB VIDs (Vendor Ids) or VID:P
 pairs (Vendor & Product Ids).
 
 
-As of the first public release, version 0.9.1, the available options reported through
+As of the current public release, version 0.9.1, the available options reported through
 'portlist -h' are:
 
 	portlist - COM & LPT port listing utility - version 0.9.1
