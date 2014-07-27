@@ -24,36 +24,46 @@ the reported list can also be limited to selected USB VIDs (Vendor Ids) or VID:P
 pairs (Vendor & Product Ids).
 
 
-As of the first public release, version 0.9, the available options reported through
-'portlist /h' are:
+As of the first public release, version 0.9.1, the available options reported through
+'portlist -h' are:
 
-    portlist - COM & LPT port listing utility - version 0.9
-	        Copyright (c) 2013, 2014 Anthony Naggs
+	portlist - COM & LPT port listing utility - version 0.9.1
+			Copyright (c) 2013, 2014 Anthony Naggs
 
-    Usage: portlist [-a] [-c] [-h|-?] [-l] [-pid <vid>:<pid>] [-vid <vid>] [-v] [-x] [-xc] [-xl]
-            -a                list available (default) and also remembered ports
-            -c                show Copyright and Warranty details (GNU General Public License v2)
+	portlist comes with ABSOLUTELY NO WARRANTY.
+	This software is free, you are welcome to redistribute it under certain conditions.
+	Type `%s -c' for Copyright, Warranty and distribution details.
+	portlist source and binary files are available from:
+			https://github.com/tonynaggs/portlist
+
+	Usage:
+	portlist [-a] [-l] [-usb[=<vid>[:<pid>]] [-v] [-x] [-xc] [-xl]
+	portlist [-c] [-h|-?]
+			-a                list all: available (default) plus remembered ports
+			-c                show GPL Copyright and Warranty details
 			-h or -?          show this help text plus examples
 			-l                long including Bus type, Vendor & Product IDs
-			-vid <vid>        specify a hex Vendor ID to match
-			-pid <vid>:<pid>  specify pair of hex Vendor & Product IDs to match
 			-v                verbose multi-line per port list (implies -l)
+			-usb              specify that any USB devices match
+			-usb=<vid>        specify a USB Vendor ID (in hex) to match
+			-usb=<vid>:<pid>  pair of USB Vendor & Product IDs (in hex) to match
 			-x                exclude available ports => list only remembered ports
 			-xc               exclude COM ports
 			-xl               exclude LPT/PRN ports
-    Note that multiple '-vid' and/or '-pid' parameters can be specified.
-    Options can start with / or - and be upper or lowercase.
+			Notes: Multiple '-usb' parameters can be specified.
+			Options can start with / or - and be upper or lowercase.
 
-    Examples:
+	Examples:
 			portlist                    : list available ports and description
 			portlist -l                 : longer, detailed list of available ports
 			portlist -a                 : all available & remembered ports
 			portlist /XL                : exclude printer ports => COM ports only
-			portlist -pid 2341:0001     : match Arduino Uno VID/PID
-			portlist /pid 04d8:000A     : match Microchip USB serial port ref
-			portlist -pid 1d50:6098     : match Aperture Labs' RFIDler
-			portlist /vid 0403          : match FTDI's Vendor ID (to find USB serial bridge chips)
-			portlist -vid 4e8 -vid 421  : match either Samsung or Nokia VIDs
+			portlist -usb=2341:0001     : match Arduino Uno VID/PID
+			portlist /usb=04d8:000A     : match Microchip USB serial port ref
+			portlist -usb=1d50:6098     : match Aperture Labs' RFIDler
+			portlist /usb=0403          : match FTDI's Vendor ID (eg serial bridges)
+			portlist -usb=4e8 -usb=421  : match either Samsung or Nokia VIDs
+
 
 I hope you find this program useful, and welcome feedback on bugs & omissions.
 
@@ -84,24 +94,25 @@ Examples of portlist usage
 
 Examples show two Microchip based dev boards connected, a USB Bit Whacker (UBW32)
 with the default Microchip USB to serial VID & PID, and an Aperture Labs
-RFIDler LF prototype.
+RFIDler LF prototype. In all these examples the overlong UBW32 is shortened
+when it is displayed, in order to fit on one line.
 
-Normal brief mode
+Normal, brief mode.
 Note that A (Active) column is only shown when -a option is given to include
 remebered as well as active ports in the list.
 
 	C:\>portlist
-	Port   Description
-	COM3   USB Serial (UBW-based) communi
-	COM4   USB Serial Port
-    
+	Port   Friendly name
+	COM3   USB Serial (UBW-based) communications port (COM3)
+	COM4   USB Serial Port (COM4)
+
 	2 ports found.
 
 	C:\>portlist -a
-	Port   A Description
-	COM3   Y USB Serial (UBW-based) communi
-	COM4   Y USB Serial Port
-    
+	Port   A Friendly name
+	COM3   A USB Serial (UBW-based) communications port (COM3)
+	COM4   A USB Serial Port (COM4)
+
 	2 ports found.
 
 Longer 1 line per port mode.
@@ -109,34 +120,34 @@ Note again that A (Active) column is only shown when -a option is given to
 include remembered as well as active ports in the list.
 
 	C:\>portlist -l
-	Port    Bus    VID  PID  Rev  Product, Vendor
-	COM3    USB    04D8 000A 0100 USB Serial (UBW-based) communi, SchmalzHaus LLC
-	COM4    USB    1D50 6098 0020 USB Serial Port, Aperture Labs Ltd.
+	Port   Bus    VID  PID  Rev  Friendly name
+	COM3   USB    04D8 000A 0100 USB Serial (UBW-based) communications port (COM3)
+	COM4   USB    1D50 6098 0020 USB Serial Port (COM4)
 
 	2 ports found.
 
-	C:\>portlist -l -a
-	Port    A Bus    VID  PID  Rev  Product, Vendor
-	COM3    Y USB    04D8 000A 0100 USB Serial (UBW-based) communi, SchmalzHaus LLC
-	COM4    Y USB    1D50 6098 0020 USB Serial Port, Aperture Labs Ltd.
 
-	2 ports found.
-
-Verbose mode
+Verbose mode.
+Note that 'Physical Device Object' only exists for ports that are currently
+available.
 
 	C:\>portlist -v
-	Port    A Bus    VID  PID  Rev  Product, Vendor
-	COM3    Y USB    04D8 000A 0100 USB Serial (UBW-based) communi, SchmalzHaus LLC
-			  Device Class: Ports
-			  Hardware Id: USB\VID_04D8&PID_000A&REV_0100
-			  Physical Device Object: \Device\USBPDO-7
-			  Location Info: Port_#0001.Hub_#0001
+	Port   A Bus    VID  PID  Rev  Friendly name
+	COM3   A USB    04D8 000A 0100 USB Serial (UBW-based) communications port (COM3)
+			 Vendor: SchmalzHaus LLC
+			 Product: USB Serial (UBW-based) communications port
+			 Device Class: Ports
+			 Hardware Id: USB\VID_04D8&PID_000A&REV_0100
+			 Physical Device Object: \Device\USBPDO-6
+			 Location Info: Port_#0001.Hub_#0001
 
-	COM4    Y USB    1D50 6098 0020 USB Serial Port, Aperture Labs Ltd.
-			  Device Class: Ports
-			  Hardware Id: USB\VID_1D50&PID_6098&REV_0020
-			  Physical Device Object: \Device\USBPDO-8
-			  Location Info: Port_#0001.Hub_#0004
+	COM4   A USB    1D50 6098 0020 USB Serial Port (COM4)
+			 Vendor: Aperture Labs Ltd.
+			 Product: USB Serial Port
+			 Device Class: Ports
+			 Hardware Id: USB\VID_1D50&PID_6098&REV_0020
+			 Physical Device Object: \Device\USBPDO-7
+			 Location Info: Port_#0001.Hub_#0004
 
-    2 ports found.
+	2 ports found.
 

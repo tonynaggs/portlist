@@ -1,6 +1,8 @@
 /*
     portlist.c - list COM (serial) and/or LPT (parallel) ports on MS Windows 
 
+    https://github.com/tonynaggs/portlist
+
     Copyright (c) 2013, 2014 Anthony Naggs. (tonynaggs@gmail.com) All rights reserved.
 
     Under the Copyright, Designs and Patents Act 1988 Anthony Naggs asserts his moral
@@ -32,6 +34,16 @@
     Indentation is always spaces not tabs, for readable code in different tools.
 
     History:
+    2014-07-27 AMN v0.9.1 Minor fixes and code tidying.
+                    Active column should only be shown when All (-a) or
+                    Verbose (-v) flags are given by the user.
+                    Print Windows Friendly Name for ports, only print
+                    Vendor & product strings in (-v) verbose mode.
+                    Improve handling & printing of port's bus name.
+                    Include github location in source & copyright help text.
+                    Add /usb commandline option.
+                    Deprecate /vid & /pid commandline options.
+
     2014-07-16 AMN v0.9 Available for public beta.
                     Cleaned up code.
                     Rename to portlist.
@@ -69,29 +81,29 @@
 
 // #define these to configure Debug prints etc
 #ifdef _DEBUG
-//#define OPTIONS_DEBUG 
+// #define OPTIONS_DEBUG 
+// #define DEBUG_DEV_PROPERTIES
 #endif
+
+// configure development or deprecated code
+// #define SUPPORT_DEPRECATED_VID_OR_PID_OPTIONS
+// #define SUPPORT_SERIAL_NUMBER_REPORTING
 
 
 typedef unsigned Bool;
 const unsigned False = 0;
 const unsigned True = 1;
 
-// English messages for help & bad options
-#define program_name L"portlist"
-const wchar_t* name_msg = program_name;
-const wchar_t* version_msg = L"0.9";
+// common substrings collected for ease of maintenance
+const wchar_t* progname_msg = L"portlist";
+const wchar_t* version_msg = L"0.9.1";
 const wchar_t* copyright_msg = L"Copyright (c) 2013, 2014 Anthony Naggs";
+const wchar_t* homeurl_msg = L"https://github.com/tonynaggs/portlist";
 
-const wchar_t* free_sw_msg =
-    program_name L" comes with ABSOLUTELY NO WARRANTY.\n"
-    L"This software is free, you are welcome to redistribute it under certain conditions.\n"
-    L"Type `" program_name L" -c' for Copyright & Warranty details.\n"
-    program_name L"source and binary files are available from https://github.com/tonynaggs/portlist\n\n";
-
+// English messages for help & bad options
 const wchar_t* long_copyright_msg =
-    L"Limited assignment of rights through the GNU General Public License version 2\n"
-    L"is described below:\n"
+    L"Limited assignment of rights through the GNU General Public License\n"
+    L"version 2 is described below:\n"
     L"\n"
     L"This program is free software; you can redistribute it and/or modify\n"
     L"it under the terms of the GNU General Public License as published by\n"
@@ -107,61 +119,115 @@ const wchar_t* long_copyright_msg =
     L"with this program; if not, write to the Free Software Foundation, Inc.,\n"
     L"51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.\n\n";
     
-const wchar_t* usage_msg = 
-    L"Usage: " program_name L" [-a] [-c] [-h|-?] [-l] [-pid <vid>:<pid>] [-vid <vid>] [-v] [-x] [-xc] [-xl]\n"
-    L"\t-a                list available (default) and also remembered ports\n"
-    L"\t-c                show Copyright and Warranty details (GNU General Public License v2)\n"
-    L"\t-h or -?          show this help text plus examples\n"
-    L"\t-l                long including Bus type, Vendor & Product IDs\n"
-    L"\t-vid <vid>        specify a hex Vendor ID to match\n"
-    L"\t-pid <vid>:<pid>  specify pair of hex Vendor & Product IDs to match\n"
-    L"\t-v                verbose multi-line per port list (implies -l)\n"
-    L"\t-x                exclude available ports => list only remembered ports\n"
-    L"\t-xc               exclude COM ports\n"
-    L"\t-xl               exclude LPT/PRN ports\n"
-    L"Note that multiple '-vid' and/or '-pid' parameters can be specified.\n"
-    L"Options can start with / or - and be upper or lowercase.\n\n";
+const wchar_t* usage_msgs[] = 
+{
+    L"[-a] [-l] [-usb[=<vid>[:<pid>]] [-v] [-x] [-xc] [-xl]",
+    L"[-c] [-h|-?]",
+    NULL
+};
 
-const wchar_t* examples_msg = 
-    L"Examples:\n"
-    L"\t" program_name L"                    : list available ports and description\n"
-    L"\t" program_name L" -l                 : longer, detailed list of available ports\n"
-    L"\t" program_name L" -a                 : all available & remembered ports\n"
-    L"\t" program_name L" /XL                : exclude printer ports => COM ports only\n"
-    L"\t" program_name L" -pid 2341:0001     : match Arduino Uno VID/PID\n"
-    L"\t" program_name L" /pid 04d8:000A     : match Microchip USB serial port ref\n"
-    L"\t" program_name L" -pid 1d50:6098     : match Aperture Labs' RFIDler\n"
-    L"\t" program_name L" /vid 0403          : match FTDI's Vendor ID (to find USB serial bridge chips)\n"
-    L"\t" program_name L" -vid 4e8 -vid 421  : match either Samsung or Nokia VIDs\n\n";
+const wchar_t* option_msgs[] = 
+{
+    L"-a                list all: available (default) plus remembered ports",
+    L"-c                show GPL Copyright and Warranty details",
+    L"-h or -?          show this help text plus examples",
+    L"-l                long including Bus type, Vendor & Product IDs",
+#if defined(SUPPORT_DEPRECATED_VID_OR_PID_OPTIONS)
+    L"-vid <vid>        [deprecated] specify a USB Vendor ID (in hex) to match",
+    L"-pid <vid>:<pid>  [deprecated] pair of USB Vendor & Product IDs (in hex) to match",
+#endif
+    L"-v                verbose multi-line per port list (implies -l)",
+    L"-usb              specify that any USB devices match",
+    L"-usb=<vid>        specify a USB Vendor ID (in hex) to match",
+    L"-usb=<vid>:<pid>  pair of USB Vendor & Product IDs (in hex) to match",
+    L"-x                exclude available ports => list only remembered ports",
+    L"-xc               exclude COM ports",
+    L"-xl               exclude LPT/PRN ports",
+    L"Notes: Multiple '-usb' parameters can be specified.",
+    L"Options can start with / or - and be upper or lowercase.",
+    NULL
+};
+
+const wchar_t* example_msgs[] =
+{
+    L"                    : list available ports and description",
+    L" -l                 : longer, detailed list of available ports",
+    L" -a                 : all available & remembered ports",
+    L" /XL                : exclude printer ports => COM ports only",
+    L" -usb               : match any USB device",
+    L" -usb=2341:0001     : match Arduino Uno VID/PID",
+    L" /usb=04d8:000A     : match Microchip USB serial port ref",
+    L" -usb=1d50:6098     : match Aperture Labs' RFIDler",
+    L" /usb=0403          : match FTDI's Vendor ID (eg serial bridges)",
+    L" -usb=4e8 -usb=421  : match either Samsung or Nokia VIDs",
+#if defined(SUPPORT_DEPRECATED_VID_OR_PID_OPTIONS)
+    L" -pid 2341:0001     : [deprecated] match Arduino Uno VID/PID",
+    L" /pid 04d8:000A     : [deprecated] match Microchip USB serial port ref",
+    L" -pid 1d50:6098     : [deprecated] match Aperture Labs' RFIDler",
+    L" /vid 0403          : [deprecated] match FTDI's Vendor ID (maker of USB to serial bridges)",
+    L" -vid 4e8 -vid 421  : [deprecated] match either Samsung or Nokia VIDs",
+#endif
+    NULL
+};
 
 // bit flags for option switches
 #define OPT_FLAG_ALL                0x00000001
 #define OPT_FLAG_LONGFORM           0x00000002
 #define OPT_FLAG_VERBOSE            0x00000004
-#define OPT_FLAG_MATCH_VID          0x00000010
-#define OPT_FLAG_MATCH_PIDVID       0x00000020
-#define OPT_FLAG_EXCLUDE_COM        0x00000100
-#define OPT_FLAG_EXCLUDE_LPT        0x00000200
-#define OPT_FLAG_EXCLUDE_AVAILABLE  0x00000400
+#define OPT_FLAG_USBMATCH_VID       0x00000010
+#define OPT_FLAG_USBMATCH_PIDVID    0x00000020
+#define OPT_FLAG_USBMATCH_ANY       0x00000040
+#define OPT_FLAG_EXCLUDE_COM        0x00001000
+#define OPT_FLAG_EXCLUDE_LPT        0x00002000
+#define OPT_FLAG_EXCLUDE_AVAILABLE  0x00004000
 
 #define OPT_FLAG_HELP_COPYRIGHT     0x40000000
 #define OPT_FLAG_HELP               0x80000000
 
-// if any of the PID or VID matching options are specified
-#define OPT_FLAG_MATCH_SPECIFIED    (OPT_FLAG_MATCH_PIDVID | OPT_FLAG_MATCH_VID)
+// if any of the USB matching options are specified
+#define OPT_FLAG_USBMATCH_SPECIFIED (OPT_FLAG_USBMATCH_PIDVID | OPT_FLAG_USBMATCH_VID | OPT_FLAG_USBMATCH_ANY)
 
+/*
+    Notes on Vendor & Product Ids
+    =============================
+   
+    Currently portlist only supports matching of USB Vendor & Product Ids.
+
+    USB specifies 16 bit Vendor, Product and optionally Revision Ids.
+
+    Other buses use different Id sizes, and Windows stores these in different
+    formats so without test systems it is hard to confirm that matching would
+    work.
+
+    EISA Vendor Id is 3 ASCII characters coded A = 00001b -> Z = 11010b.
+    Product Id is 8 bits, Revision is 8 bits.
+
+    Cardbus (32 bit bus PC Card) through PCI bridge is the same as PCI.
+
+    PCMCIA (16 bit bus PC Card)
+        CISTPL_VERS_1 (Card Information Structure tuple version 1) has:
+        Major version 8 bits
+        Minor version 8 bits
+        Manufacturer Name string ASCIIZ
+        Product Name string ASCIIZ
+        Additional Info string ASCIIZ
+
+    PCI has 16 bit Vendor Id, Device Id, and 8 bit Revision Id.
+    Vendor Id 0xFFFF => slot empty, Windows also treats 0x0000 as slot empty.
+    Class Code Register is 24 bits, should be non-zero.
+
+    Firewire defines a 24 bit Vendor Id.
+*/
 
 // bit flags for retrieved data
-#define RETRIEVED_VID               0x00000001
-#define RETRIEVED_PID               0x00000002
+#define RETRIEVED_VENDOR_ID         0x00000001
+#define RETRIEVED_PRODUCT_ID        0x00000002
 #define RETRIEVED_REV               0x00000004
 #define RETRIEVED_PORTADDRESS       0x00000008
 #define RETRIEVED_INTERRUPT         0x00000010
 #define RETRIEVED_PORTINDEX         0x00000020
 #define RETRIEVED_INDEXED           0x00000040
 
-
-#define BUSNAME_MAX                 9      /* long enough for "Bluetooth" */
 
 ////////////////////////////////////////////////
 // struct definintions
@@ -175,27 +241,32 @@ struct u32_list {
 
 
 typedef struct portinfo {
-    wchar_t*            name;           // COM1, PRN, ...
-    wchar_t*            description;    // product description eg "USB Serial Port"
+    wchar_t*            portname;       // COM1, PRN, ...
+    wchar_t*            friendlyname;   // Windows friendly name
 
     // sorting key info
     size_t              prefixlen;      // length of "COM", "LPT" prefix, or strlen of name
     unsigned            portnumber;     // upto 3 digit number following COM or LPT
 
     // optional info for long listing
-    wchar_t*            vendor;
-    wchar_t             busname[BUSNAME_MAX + 1];     // 
-    unsigned            vid;
-    unsigned            pid;
-    unsigned            revision;
-    unsigned            retrieved;
+    wchar_t*            busname;
+    Bool                isUSB;          // probably USB, therefore VID matching is valid
+    unsigned long       vendorId;
+    unsigned long       productId;
+    unsigned long       revision;
+    unsigned            retrieved;      // bit flags
 
     // optional info for verbose listing
+    Bool                isAvailable;
+    wchar_t*            product;        // product description eg "USB Serial Port"
+    wchar_t*            vendor;
     wchar_t*            hardwareid;
     wchar_t*            location;
     wchar_t*            physdevobj;
     wchar_t*            devclass;
-    Bool                is_available;
+#if defined(SUPPORT_SERIAL_NUMBER_REPORTING)
+    wchar_t*            serialnumber;
+#endif
 
     // verbose details from registry, for legacy ports (no Plug & Play)
     unsigned long       portaddress;
@@ -232,12 +303,14 @@ void usage(Bool help_examples, Bool help_copyright);
 int matchoption(PortList* list, int argc, wchar_t** argv);
 Bool checkoptions(PortList* list, int argc, wchar_t** argv);
 Bool findinlist(struct u32_list list, unsigned value);
-Bool checkpidandvidlists(PortList* list, unsigned vid, unsigned pid);
+Bool checkpidandvidlists(PortList* list, PortInfo* pInfo);
 void trygetdevice_regdword(HKEY devkey, wchar_t* keyname, DWORD* result, unsigned int* flags, unsigned int attribflag);
 wchar_t* getportname(HKEY devkey);
 void getverboseportinfo(HKEY devkey, PortInfo* pInfo);
 PortInfo* getdevicesetupinfo(HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData, unsigned opt_flags);
 wchar_t* portstringproperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData, DWORD devprop);
+wchar_t* wcs_dupsubstr(const wchar_t* string, size_t length);
+Bool wcs_seekul(wchar_t** pString, const wchar_t* SubStr, unsigned long* pOutValue, int Radix);
 Bool getportdetails(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData, PortInfo* pInfo);
 int portcmp(PortInfo* p1, PortInfo* p2);
 Bool getdeviceinfo(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData);
@@ -265,7 +338,7 @@ void listadd(struct u32_list* list, unsigned value)
 // print program name & error message to stderr
 int errorprint(const wchar_t* message)
 {
-    return fwprintf(stderr, L"%s: %s\n", name_msg, message);
+    return fwprintf(stderr, L"%s: %s\n", progname_msg, message);
 }
 
 
@@ -277,7 +350,7 @@ int errorprintf(const wchar_t* format, ...)
 
     va_start(arglist, format);
 
-    res = fwprintf(stderr, L"%s: ", name_msg);
+    res = fwprintf(stderr, L"%s: ", progname_msg);
 
     if (res > 0) {
         res += vfwprintf(stderr, format, arglist);
@@ -291,20 +364,46 @@ int errorprintf(const wchar_t* format, ...)
 void usage(Bool help_examples, Bool help_copyright)
 {
     fwprintf(stderr, L"%s - COM & LPT port listing utility - version %s\n\t%s\n\n",
-        name_msg, version_msg, copyright_msg);
+        progname_msg, version_msg, copyright_msg);
 
     if (help_copyright) {
+        fwprintf(stderr, L"\tHome URL %s\n\n", homeurl_msg);
         fputws(long_copyright_msg, stderr);
     } else {
-        fputws(free_sw_msg, stderr);
+        fwprintf(stderr, L"%s comes with ABSOLUTELY NO WARRANTY.\n"
+            L"This software is free, you are welcome to redistribute it under certain conditions.\n"
+            L"Type `%s -c' for Copyright, Warranty and distribution details.\n"
+            L"%s source and binary files are available from:\n\t%s\n\n",
+                progname_msg, progname_msg, progname_msg, homeurl_msg);
     }
 
     if (help_examples || !help_copyright) {
-        fputws(usage_msg, stderr);
+        const wchar_t** msgs;
+
+        fputws(L"Usage:\n", stderr);
+
+        // lines mentioning program name
+        for (msgs = usage_msgs; *msgs; msgs++) {
+            fwprintf(stderr, L"%s %s\n", progname_msg, *msgs);
+        }
+
+        // list of options
+        for (msgs = option_msgs; *msgs; msgs++) {
+            fwprintf(stderr, L"\t%s\n", *msgs);
+        }
+
+        fputws(L"\n", stderr);
     }
 
     if (help_examples) {
-        fputws(examples_msg, stderr);
+        const wchar_t** msgs = example_msgs;
+
+        fputws(L"Examples:\n", stderr);
+        for (; *msgs; msgs++) {
+            fwprintf(stderr, L"\t%s%s\n", progname_msg, *msgs);
+        }
+
+        fputws(L"\n", stderr);
     }
 
     fflush(stderr);
@@ -339,21 +438,33 @@ struct opt_info opt_list[] = {
     { NULL }
 };
 
+struct bus_match_info {
+    const wchar_t*  buslabel;
+    unsigned        flagnoparams;
+    unsigned        minparams;
+    unsigned        maxparams;
+    unsigned        flagNparams[4];
+    unsigned long   maxvalues[4];
+    // probably a fn pointer here to customise handling for different buses
+};
+
+struct bus_match_info bus_list[] = {
+    { L"USB", OPT_FLAG_USBMATCH_ANY, 1, 2, 
+        { OPT_FLAG_USBMATCH_VID, OPT_FLAG_USBMATCH_PIDVID }, { 0xFFFF, 0xFFFF } },
+    // end of list marker
+    { NULL }
+};
 
 // get id arguments for vid or vid:pid
-Bool getidarg(int argc, wchar_t** argv, int params, unsigned long* pvid, unsigned long* ppid)
+Bool getidarg(const wchar_t* arg, int params, unsigned long* pvid, unsigned long* ppid)
 {
     const wchar_t* format = (params == 1) ? L"%4x" : L"%4x:%4x";
-
-    if (argc < 2) {
-        return False;
-    }
 
 #if defined(OPTIONS_DEBUG)
     wprintf(L"swscanf returns %i\n", swscanf(argv[1], format, pvid, ppid));
 #endif
 
-    if (params != swscanf(argv[1], format, pvid, ppid)) {
+    if (params != swscanf(arg, format, pvid, ppid)) {
         return False;
     }
     
@@ -396,28 +507,72 @@ int matchoption(PortList* list, int argc, wchar_t** argv)
         }   
     }
 
-    // options with parameters
-    if (!wcsicmp(arg, L"pid")) {
-        // -pid <vid>:<pid>  specify hex Vendor & Product IDs to match
-        if (!getidarg(argc, argv, 2, &vid, &pid)) {
-            return 0;
-        }
+    // bus match option flags
+    for (idx = 0; bus_list[idx].buslabel != NULL; idx++) {
+        size_t strlen = wcslen(bus_list[idx].buslabel);
 
-        // extend list memory
-        listadd(&(list->pidvidlist), (vid << 16) | pid);
-        list->opt_flags |= OPT_FLAG_MATCH_PIDVID;
-        return 2;
-    } else if (!wcsicmp(arg, L"vid")) {
-        // -vid <vid>        specify a hex Vendor ID to match
-        if (!getidarg(argc, argv, 1, &vid, &pid)) {
-            return 0;
-        }
+        if (!wcsnicmp(arg, bus_list[idx].buslabel, strlen)) {
+            arg += strlen;
+            if (*arg == L'\0') {
+                list->opt_flags |= bus_list[idx].flagnoparams;
+                return 1;
+            } else if (*arg != L'=') {
+                return 0;
+            } else {
+                // TODO make this more generic for other bus types & use bus_match_info
+                arg += 1;
+                if (wcschr(arg, L':')) {
+                    // -usb=<vid>:<pid>  specify hex Vendor & Product IDs to match
+                    if (!getidarg(arg, 2, &vid, &pid)) {
+                        return 0;
+                    }
 
-        // extend list memory
-        listadd(&(list->vidlist), vid);
-        list->opt_flags |= OPT_FLAG_MATCH_VID;
-        return 2;
+                    // extend list memory
+                    listadd(&(list->pidvidlist), (vid << 16) | pid);
+                    list->opt_flags |= OPT_FLAG_USBMATCH_PIDVID;
+                    return 1;
+                } else {
+                    // -usb=<vid>        specify a hex Vendor ID to match
+                    if (!getidarg(arg, 1, &vid, &pid)) {
+                        return 0;
+                    }
+
+                    // extend list memory
+                    listadd(&(list->vidlist), vid);
+                    list->opt_flags |= OPT_FLAG_USBMATCH_VID;
+                    return 1;
+                }
+            }
+        }   
     }
+
+
+#if defined(SUPPORT_DEPRECATED_VID_OR_PID_OPTIONS)
+    // options with parameters
+    if (argc >= 2) {
+        if (!wcsicmp(arg, L"pid")) {
+            // -pid <vid>:<pid>  specify hex Vendor & Product IDs to match
+            if (!getidarg(argv[1], 2, &vid, &pid)) {
+                return 0;
+            }
+
+            // extend list memory
+            listadd(&(list->pidvidlist), (vid << 16) | pid);
+            list->opt_flags |= OPT_FLAG_USBMATCH_PIDVID;
+            return 2;
+        } else if (!wcsicmp(arg, L"vid")) {
+            // -vid <vid>        specify a hex Vendor ID to match
+            if (!getidarg(argv[1], 1, &vid, &pid)) {
+                return 0;
+            }
+
+            // extend list memory
+            listadd(&(list->vidlist), vid);
+            list->opt_flags |= OPT_FLAG_USBMATCH_VID;
+            return 2;
+        }
+    }
+#endif
 
     // not recognised
     return 0;
@@ -458,9 +613,26 @@ Bool findinlist(struct u32_list list, unsigned value)
 }
 
 
-Bool checkpidandvidlists(PortList* list, unsigned vid, unsigned pid)
+Bool checkpidandvidlists(PortList* list, PortInfo* pInfo)
 {
-    return findinlist(list->vidlist, vid) || findinlist(list->pidvidlist, (vid << 16) | pid);
+    Bool success = False;
+
+    if (pInfo->isUSB) {
+        // VID & PID seem valid enough to proceed with USB Id matching
+        if (list->opt_flags & OPT_FLAG_USBMATCH_ANY) {
+            success = True;
+        }
+
+        if (!success && list->opt_flags & OPT_FLAG_USBMATCH_VID) {
+            success = findinlist(list->vidlist, pInfo->vendorId);
+        }
+
+        if (!success && (list->opt_flags & OPT_FLAG_USBMATCH_PIDVID)) {
+            success = findinlist(list->pidvidlist, (pInfo->vendorId << 16) | pInfo->productId);
+        }
+    }
+            
+    return success;
 }
 
 
@@ -487,6 +659,7 @@ wchar_t* getportname(HKEY devkey)
     DWORD sizeIn = 0;
     DWORD sizeOut = sizeIn;
     DWORD type = 0;
+    wchar_t* portname = NULL;
 
     // Win2k should return ERROR_MORE_DATA if buffer is too small, Win7 happily suceeds so need to check size too
     if (((RegQueryValueEx(devkey, L"PortName", NULL, &type, NULL, &sizeOut)) == ERROR_MORE_DATA)
@@ -495,28 +668,21 @@ wchar_t* getportname(HKEY devkey)
         if (REG_SZ != type) {
             errorprintf(L"expected PortName to be of type REG_SZ not %#X)", type);
         } else {
-            // use calloc & +1 to workaround issue that RegQueryValueEx does not ensure NIL terminator on string
-            // use sizeof(wchar_t) to workaround W2K returning sie in characters instead of bytes
-            wchar_t* buffer = calloc(sizeOut + 1, sizeof(wchar_t));
+            // use sizeof(wchar_t) to workaround W2K returning size in characters instead of bytes
+            wchar_t* buffer = calloc(sizeOut, sizeof(wchar_t));
             sizeIn = sizeOut;
 
             if (buffer && ((RegQueryValueEx(devkey, L"PortName", NULL, &type, (LPBYTE)buffer, &sizeOut)) == ERROR_SUCCESS)
                     && (sizeOut == sizeIn)) {
-                wchar_t* buff2;
-
                 // copy to new buffer that doesn't waste bytes on W2k workaround
-                buff2 = wcsdup(buffer);
-                if (buff2) {
-                    free(buffer);
-                    return buff2;
-                }
+                portname = wcs_dupsubstr(buffer, sizeIn);
             }
 
             free(buffer);
         }
     }
 
-    return NULL;
+    return portname;
 }
 
 
@@ -543,9 +709,9 @@ PortInfo* getdevicesetupinfo(HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData
         pInfo = (PortInfo*) calloc(1, sizeof(PortInfo));
 
         if (pInfo) {
-            pInfo->name = getportname(devkey);
+            pInfo->portname = getportname(devkey);
 
-            if (pInfo->name) {
+            if (pInfo->portname) {
                 if (opt_flags & OPT_FLAG_VERBOSE) {
                     getverboseportinfo(devkey, pInfo);
                 }
@@ -569,6 +735,7 @@ wchar_t* portstringproperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData,
     DWORD    type;
     DWORD    lastError;
     DWORD    buffersize = 0;
+    wchar_t* strproperty = NULL;
 
     // first call gets property info, such as size & type
     SetupDiGetDeviceRegistryProperty(
@@ -583,9 +750,8 @@ wchar_t* portstringproperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData,
     lastError = GetLastError();
     // continue if property currently defined for this port
     if (ERROR_INSUFFICIENT_BUFFER == lastError &&  ((REG_SZ == type) || (REG_MULTI_SZ == type))) {
-        // Allocate a buffer, calloc & +1 ensure string is NIL terminated
         // sizeof(wchar_t) works around W2k MBCS bug per KB 888609. 
-        wchar_t* buffer = calloc(buffersize + 1, sizeof(wchar_t) );
+        wchar_t* buffer = calloc(buffersize, sizeof(wchar_t) );
 
         if (buffer && SetupDiGetDeviceRegistryProperty(
                 hDevInfo,
@@ -595,34 +761,76 @@ wchar_t* portstringproperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData,
                 (PBYTE)buffer,
                 buffersize,
                 NULL)) {
-            wchar_t* buff2;
 
             // copy to new buffer that doesn't waste bytes on W2k workaround
-            buff2 = wcsdup(buffer);
-            if (buff2) {
-                free(buffer);
-                return buff2;
-            }
+            strproperty = wcs_dupsubstr(buffer, buffersize);
         }
 
         free(buffer);
     }
 
-    if ((ERROR_INVALID_DATA != lastError) && (ERROR_NO_SUCH_DEVINST != lastError)) {
-        errorprintf(L"could not get property %#X - %#X)", devprop, lastError);
+    if (!strproperty) {
+        if ((ERROR_INVALID_DATA != lastError) && (ERROR_NO_SUCH_DEVINST != lastError)) {
+            errorprintf(L"could not get property %#X - %#X)", devprop, lastError);
+        }
+
+        // check type
+        if ((ERROR_SUCCESS == lastError) && (REG_SZ != type) && (REG_MULTI_SZ != type)) {
+            errorprintf(L"expected property %#X to be of type REG_SZ or REG_MULTI_SZ not %#X)", devprop, type);
+        }
     }
 
-    // check type
-    if ((ERROR_SUCCESS == lastError) && (REG_SZ != type) && (REG_MULTI_SZ != type)) {
-        errorprintf(L"expected property %#X to be of type REG_SZ or REG_MULTI_SZ not %#X)", devprop, type);
+    return strproperty;
+}
+
+
+// duplicate a substring, max of length wide chars
+// protects when copying registry strings that are not NIL terminated
+wchar_t* wcs_dupsubstr(const wchar_t* string, size_t length)
+{
+    size_t alloclen; // = (string[length] == L'\0') ? length : (length + 1);
+    wchar_t* buff = NULL;
+    
+    if (string != NULL) {
+        for (alloclen = 0; (alloclen < length) && (string[alloclen] != L'\0'); alloclen++)
+            ;
+
+        if (alloclen > 0) {
+            buff = calloc(alloclen + 1, sizeof(wchar_t));
+
+            if (buff) {
+                wcsncpy(buff, string, alloclen);
+            }
+        }
+    }
+    return buff;
+}
+
+
+// combine wcsstr() [= wcswcs()] and wcstoul()
+Bool wcs_seekul(wchar_t** pString, const wchar_t* SubStr, unsigned long* pOutValue, int Radix)
+{
+    wchar_t* match = *pString;
+    
+    if (match && SubStr) {
+        // find substring
+        match = wcsstr(match, SubStr);
     }
 
-    return NULL;
+    if (match) {
+        // read following characters to get value
+        match += wcslen(SubStr);
+        *pOutValue = wcstoul(match, pString, Radix);
+        if (match != *pString) {
+            return True;
+        }
+    }
+    return False;
 }
 
 
 /* Device Properties that we can pick from
- *  SPDRP_DEVICEDESC                  DeviceDesc (R/W
+ *  SPDRP_DEVICEDESC                  DeviceDesc (R/W)
  *  SPDRP_HARDWAREID                  HardwareID (R/W)
  *  SPDRP_COMPATIBLEIDS               CompatibleIDs (R/W)
  *  SPDRP_SERVICE                     Service (R/W)
@@ -661,37 +869,73 @@ wchar_t* portstringproperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData,
 Bool getportdetails(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceInfoData, PortInfo* pInfo)
 {
     // get base information
-    pInfo->description = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_DEVICEDESC);
-    if (NULL == pInfo->description) {
-        return False;
-    }
+    pInfo->friendlyname = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_FRIENDLYNAME);
 
-    if (list->opt_flags & (OPT_FLAG_MATCH_SPECIFIED | OPT_FLAG_LONGFORM)) {
-        // get VID, PID & Revision
+
+#if defined(_DEBUG) && defined(DEBUG_DEV_PROPERTIES)
+    //////////////////////////////////////////////////////////////////////////////
+    // test code for peeking at device attribute 
+
+    {
+        wchar_t* tempstr = NULL;
+
+        tempstr = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_ADDRESS);
+        if (tempstr) {
+            wprintf(L"SPDRP_ADDRESS = %s\n", tempstr);
+            free(tempstr);
+            tempstr = NULL;
+        }
+
+        tempstr = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_CHARACTERISTICS);
+        if (tempstr) {
+            wprintf(L"SPDRP_CHARACTERISTICS = %s\n", tempstr);
+            free(tempstr);
+            tempstr = NULL;
+        }
+
+        tempstr = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_UI_NUMBER);
+        if (tempstr) {
+            wprintf(L"SPDRP_UI_NUMBER = %s\n", tempstr);
+            free(tempstr);
+            tempstr = NULL;
+        }
+
+        tempstr = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_DRIVER);
+        if (tempstr) {
+            wprintf(L"SPDRP_DRIVER = %s\n", tempstr);
+            free(tempstr);
+            tempstr = NULL;
+        }
+    }
+#endif
+
+    //////////////////////////////////////////////////////////////////////////////////
+    
+
+
+    if (list->opt_flags & (OPT_FLAG_USBMATCH_SPECIFIED | OPT_FLAG_LONGFORM)) {
+        // get Bus type, VID, PID & Revision
         pInfo->hardwareid = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_HARDWAREID);
         if (pInfo->hardwareid) {
-            int i = 0;
             wchar_t* str = pInfo->hardwareid;
-            wchar_t* end = str;
+            size_t bus_len = wcsspn(str, L"ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
-            while (isupper(str[i]) && (i < BUSNAME_MAX)) {
-                pInfo->busname[i] = str[i];
-                i++;
+            // extract busname
+            if (bus_len > 0) {
+                pInfo->busname = wcs_dupsubstr(str, bus_len);
+                str += bus_len;
             }
 
-            str = wcswcs(str + i, L"VID_");
-            if (str) {
-                pInfo->vid = wcstoul(str + 4, &end, 16);
-                pInfo->retrieved |= RETRIEVED_VID;
+            if (wcs_seekul(&str, L"\\VID_", &(pInfo->vendorId), 16)) {
+                pInfo->retrieved |= RETRIEVED_VENDOR_ID;
 
-                str = wcswcs(end, L"PID_");
-                if (str) {
-                    pInfo->pid = wcstoul(str + 4, &end, 16);
-                    pInfo->retrieved |= RETRIEVED_PID;
+                if (wcs_seekul(&str, L"PID_", &(pInfo->productId), 16)) {
+                    pInfo->retrieved |= RETRIEVED_PRODUCT_ID;
+                    if ( (pInfo->vendorId < 0x10000) && (pInfo->productId < 0x10000) ) {
+                        pInfo->isUSB = True;
+                    }
 
-                    str = wcswcs(end, L"REV_");
-                    if (str) {
-                        pInfo->revision = wcstoul(str + 4, &end, 16);
+                    if (wcs_seekul(&str, L"REV_", &(pInfo->revision), 16)) {
                         pInfo->retrieved |= RETRIEVED_REV;
                     }
                 }
@@ -701,12 +945,18 @@ Bool getportdetails(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceI
 
     // Vendor / Manufacturer name
     if (list->opt_flags & OPT_FLAG_LONGFORM) {
+        pInfo->product = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_DEVICEDESC);
         pInfo->vendor = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_MFG);
 
         // interesting values for verbose mode
         if (list->opt_flags & OPT_FLAG_VERBOSE) {
             pInfo->devclass = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_CLASS);
             pInfo->location = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_LOCATION_INFORMATION);
+
+            /* TODO find & extract serial number
+            if ( (*end == L'\\') && (list->opt_flags & OPT_FLAG_VERBOSE) ) {
+                pInfo->serialnumber = wcsdup(end + 1);
+            }	*/
         }
     }
 
@@ -714,7 +964,7 @@ Bool getportdetails(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceI
     if (list->opt_flags & (OPT_FLAG_ALL | OPT_FLAG_VERBOSE)) {
         pInfo->physdevobj = portstringproperty(hDevInfo, pDeviceInfoData, SPDRP_PHYSICAL_DEVICE_OBJECT_NAME);
         if (pInfo->physdevobj) {
-            pInfo->is_available = True;
+            pInfo->isAvailable = True;
         }
     }
 
@@ -727,9 +977,9 @@ int portcmp(PortInfo* p1, PortInfo* p2)
 {
     int res;
     if (p1->prefixlen != p2->prefixlen) {
-        res = wcscmp(p1->name, p2->name);
+        res = wcscmp(p1->portname, p2->portname);
     } else {
-        res = wcsncmp(p1->name, p2->name, p1->prefixlen);
+        res = wcsncmp(p1->portname, p2->portname, p1->prefixlen);
         if (res == 0)
             res = p1->portnumber - p2->portnumber;
     }
@@ -744,17 +994,18 @@ Bool getdeviceinfo(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceIn
     PortInfo* pInfo = getdevicesetupinfo(hDevInfo, pDeviceInfoData, list->opt_flags);
 
     if (pInfo) {
-        // extract info for name sorting
-        pInfo->prefixlen = wcscspn(pInfo->name, L"0123456789");
-        if (pInfo->prefixlen != wcslen(pInfo->name)) {
+        // extract prefix and port number for port name sorting
+        pInfo->prefixlen = wcscspn(pInfo->portname, L"0123456789");
+        if (pInfo->prefixlen != wcslen(pInfo->portname)) {
             wchar_t* end;
 
-            pInfo->portnumber = wcstoul(pInfo->name + pInfo->prefixlen, &end, 10);
+            pInfo->portnumber = wcstoul(pInfo->portname + pInfo->prefixlen, &end, 10);
         }
 
         if ((list->opt_flags & (OPT_FLAG_EXCLUDE_COM | OPT_FLAG_EXCLUDE_LPT)) && (3 == pInfo->prefixlen)) {
             // use port name to distinguish COM & LPT ports
-            Bool is_com_port = (0 == wcscmp(pInfo->name, L"AUX")) || (pInfo->portnumber && (0 == wcsncmp(pInfo->name, L"COM", 3)));
+            Bool is_com_port = (0 == wcscmp(pInfo->portname, L"AUX")) ||
+                (pInfo->portnumber && (0 == wcsncmp(pInfo->portname, L"COM", 3)));
 
             if (list->opt_flags & OPT_FLAG_EXCLUDE_COM) {
                 // exclude AUX & COM ports
@@ -770,21 +1021,13 @@ Bool getdeviceinfo(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceIn
             success = getportdetails(list, hDevInfo, pDeviceInfoData, pInfo);
         }
 
-        if (success && (list->opt_flags & OPT_FLAG_EXCLUDE_AVAILABLE) && pInfo->is_available) {
+        if (success && (list->opt_flags & OPT_FLAG_EXCLUDE_AVAILABLE) && pInfo->isAvailable) {
             // device is available, but we've been requested to exclude available this time!
             success = False;
         }
 
-        if (success && (list->opt_flags & OPT_FLAG_MATCH_SPECIFIED)) {
-            if ((list->opt_flags & (OPT_FLAG_MATCH_VID | OPT_FLAG_MATCH_PIDVID)) && !(pInfo->retrieved & RETRIEVED_VID)) {
-                // no VID retrieved, so cannot match
-                success = False;
-            } else if ((list->opt_flags & OPT_FLAG_MATCH_PIDVID) && !(pInfo->retrieved & RETRIEVED_PID)) {
-                // no PID retrieved, so cannot match
-                success = False;
-            } else {
-                success = checkpidandvidlists(list, pInfo->vid, pInfo->pid);
-            }
+        if (success && (list->opt_flags & OPT_FLAG_USBMATCH_SPECIFIED)) {
+            success = checkpidandvidlists(list, pInfo);
         }
 
         if (success) {
@@ -805,14 +1048,19 @@ Bool getdeviceinfo(PortList* list, HDEVINFO hDevInfo, SP_DEVINFO_DATA* pDeviceIn
                 prev->next = pInfo;
             }
         } else {
-            // cleanup any allocated strings
-            free(pInfo->description);
+            // cleanup allocated strings & memory
+            free(pInfo->friendlyname);
+            free(pInfo->busname);
+            free(pInfo->product);
             free(pInfo->vendor);
-            free(pInfo->name);
+            free(pInfo->portname);
             free(pInfo->hardwareid);
             free(pInfo->location);
             free(pInfo->physdevobj);
             free(pInfo->devclass);
+#if defined(SUPPORT_SERIAL_NUMBER_REPORTING)
+            free(pInfo->serialnumber);
+#endif
 
             free(pInfo);
         }
@@ -896,7 +1144,7 @@ void listports(PortList* list)
     /* device setup GUIDs to look for are:
        GUID_DEVCLASS_PORTS single COM / LPT ports
        GUID_DEVCLASS_MODEM modem ports are not included in GUID_DEVCLASS_PORTS
-       GUID_DEVCLASS_MULTIPORTSERIAL multiple COM ports
+       GUID_DEVCLASS_MULTIPORTSERIAL multiple COM ports on single (PCI) card
     */
 
     PortInfo*       p;
@@ -913,37 +1161,59 @@ void listports(PortList* list)
     p = list->ports;       // linked list of port info
 
     if (list->opt_flags & OPT_FLAG_LONGFORM) {
-        wprintf(L"Port    A Bus    VID  PID  Rev  Product, Vendor\n");
+        wprintf(L"Port   %sBus    VID  PID  Rev  Friendly name\n",
+            list->opt_flags & (OPT_FLAG_ALL | OPT_FLAG_VERBOSE) ? L"A " : L"");
 
-        while (p) {
-            wprintf(L"%-6s  ", p->name);
+        for (; p; p = p->next) {
+            wprintf(L"%-6s ", p->portname);
 
-            // physdevobj string is set if device is available
-            wprintf(L"%c ", p->is_available ? 'Y' : 'n');
+            // device availability only for Verbose or All listings
+            if (list->opt_flags & (OPT_FLAG_ALL | OPT_FLAG_VERBOSE) ) {
+                wprintf(p->isAvailable ? L"A " : L". ");
+            }
 
-            if (p->retrieved & (RETRIEVED_VID | RETRIEVED_PID | RETRIEVED_REV)) {
+            if (p->isUSB) {
                 const wchar_t* fmt_4hex = L"%04X ";
                 const wchar_t* spaces5  = L"     ";
 
-                wprintf(L"%-6s ", p->busname);
-                wprintf(p->retrieved & RETRIEVED_VID ? fmt_4hex : spaces5, p->vid);
-                wprintf(p->retrieved & RETRIEVED_PID ? fmt_4hex : spaces5, p->pid);
+                wprintf(L"%-6s ", p->busname ? p->busname : L" ");
+
+                // USB Vendor Id & Product Id only retrieved together
+                wprintf(fmt_4hex, p->vendorId);
+                wprintf(fmt_4hex, p->productId);
                 wprintf(p->retrieved & RETRIEVED_REV ? fmt_4hex : spaces5, p->revision);
             } else {
-                // output is prettier for long busnames (e.g. if "Bluetooth" is ever found)
-                wprintf(L"%-21s ", p->busname);
+                // if no VID we have more space for long busnames
+                wprintf(L"%-21s ", p->busname ? p->busname : L" ");
             }
-            wprintf(L"%.30s, %.20s\n", p->description, p->vendor);
 
+            if (p->friendlyname) {
+                wprintf(L"%s\n", p->friendlyname);
+            } else {
+                wprintf(L"\n");
+            }
+
+            // extra info for verbose mode
             if (list->opt_flags & OPT_FLAG_VERBOSE) {
-                wchar_t* indent = L"\t  ";
+                wchar_t* indent = L"         ";
 
+                if (p->vendor) {
+                    wprintf(L"%sVendor: %s\n", indent, p->vendor);
+                }
+                if (p->product) {
+                    wprintf(L"%sProduct: %s\n", indent, p->product);
+                }
                 if (p->devclass) {
                     wprintf(L"%sDevice Class: %s\n", indent, p->devclass);
                 }
                 if (p->hardwareid) {
                     wprintf(L"%sHardware Id: %s\n", indent, p->hardwareid);
                 }
+#if defined(SUPPORT_SERIAL_NUMBER_REPORTING)
+                if (p->serialnumber) {
+                    wprintf(L"%sSerial number: %s\n", indent, p->serialnumber);
+                }
+#endif
                 if (p->physdevobj) {
                     wprintf(L"%sPhysical Device Object: %s\n", indent, p->physdevobj);
                 }
@@ -958,8 +1228,9 @@ void listports(PortList* list)
 
                 // multiport device
                 if ((p->retrieved & (RETRIEVED_PORTINDEX | RETRIEVED_INDEXED)) == (RETRIEVED_PORTINDEX | RETRIEVED_INDEXED)) {
-                    wprintf(p->indexed ? L"%s%s index %lu\n" : L"%s%s bitmap 0x%04lX\n", indent,
-                        L"Multi-port device -- port ", p->portindex);
+                    wprintf(L"%sMulti-port device -- port ", indent);
+                        
+                    wprintf(p->indexed ? L"index %lu\n" : L"%bitmap 0x%04lX\n", p->portindex);
                 }
 
                 // if there is another port to print add a spacing line
@@ -967,21 +1238,27 @@ void listports(PortList* list)
                     wprintf(L"\n");
                 }
             }
-
-            p = p->next;
         }
     } else {
-        wprintf(L"Port   A Description\n");
+        wprintf(L"Port   %sFriendly name\n", list->opt_flags & OPT_FLAG_ALL ? L"A " : L"");
 
-        while (p) {
-            wprintf(L"%-6s %c %.30s\n", p->name, p->is_available ? 'Y' : 'n', p->description);
+        for (; p; p = p->next) {
+            wprintf(L"%-6s ", p->portname);
 
-            p = p->next;
+            if (list->opt_flags & OPT_FLAG_ALL) {
+                wprintf(p->isAvailable ? L"A " : L". ");
+            }
+
+            if (p->friendlyname) {
+                wprintf(L"%s\n", p->friendlyname);
+            } else {
+                wprintf(L"\n");
+            }
         }
     }
 
     wprintf(L"\n%u %sport%s found.\n", count, 
-        (list->opt_flags & OPT_FLAG_MATCH_SPECIFIED) ? L"matching " : L"",
+        (list->opt_flags & OPT_FLAG_USBMATCH_SPECIFIED) ? L"matching " : L"",
         (count != 1) ? L"s" : L"");
 }
 
@@ -995,7 +1272,15 @@ int wmain(int argc, wchar_t* argv[])
 
 #ifdef _DEBUG
     // debug build: default to test maximum number of details
-    list.opt_flags |= OPT_FLAG_ALL | OPT_FLAG_LONGFORM | OPT_FLAG_VERBOSE;
+    list.opt_flags = OPT_FLAG_ALL | OPT_FLAG_LONGFORM | OPT_FLAG_VERBOSE;
+    // list.opt_flags = OPT_FLAG_HELP;
+    // list.opt_flags = OPT_FLAG_HELP_COPYRIGHT
+    
+    {
+        wchar_t* testargs[] = { L"/usb=04d8:000A", L"-usb=421" };
+        checkoptions(&list, 2, testargs);
+    }
+    
 #endif
 
     if (argc > 1) {
