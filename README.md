@@ -1,31 +1,40 @@
 portlist
 ========
 
-Port List - lists available (or remembered) serial or printer ports on MS Windows
-
-One problem with connecting a new USB or Bluetooth to serial or parallel device to a
-PC running Microsoft Windows is that you don't always see the message flash up that
-tells you the serial or parallel port name. You may forget the name, or the name may
-change if you plug it into a different USB port, or the program using the port did
-not close the port before you reconnect the device.
-
-This also affects things that pretend to be a serial or parallel port over USB,
-but microcontroller development devices such as the Arduino.
-
-I found some programs that claimed to help with this, but they were flawed in not
-finding all my different devices or took a long time by literally trying to open
-(& then close) tens of ports named COM1 and incrementing the number.
-
-Hence this Portlist program, which tries to be fast and comprehensive. It finds
-the available parallel and/or serial ports through querying the registry and device
-setup API. It is also able to find and list all such ports known to Windows, and
-remembered for devices that are not currently available. Amongst other features,
-the reported list can also be limited to selected USB VIDs (Vendor Ids) or VID:PID
-pairs (Vendor & Product Ids).
+Port List - lists available (optionally all remembered) COM (serial or modem)
+or LPT (printer) ports on Microsoft Windows 2000, XP, Vista, 7 or 8.
 
 
-As of the current public release, version 0.9.1, the available options reported through
-'portlist -h' are:
+One problem with connecting a new USB or Bluetooth to serial or parallel
+device to a PC running Microsoft Windows is that you don't always see the
+message flash up that tells you the serial or parallel port name. You may
+forget the name, or the name may change if you plug it into a different USB
+port, or the program using the port did not close the port before you
+reconnect the device.
+
+This also affects things that pretend to be a serial or parallel port over
+USB, usually microcontroller development devices such as Arduinos.
+
+I found some programs that claimed to help with this, but they were flawed in
+not finding all my different devices (eg modem, Bluetooth connected devices).
+Or they took a long time by literally trying to open (& then close) tens of
+ports named COM1, COM2, COM3 etc.
+
+Hence this Portlist program, which tries to be fast and comprehensive. It
+finds the available parallel and/or serial ports through querying the registry
+and device setup API. It is also able to find and list all (-a) such ports
+known to Windows, and remembered for devices that are not currently available.
+
+Amongst other features the reported list can also be limited to selected USB
+VIDs (Vendor Ids) or VID:PID pairs (Vendor & Product Ids). Long (-l) and
+verbose (-v) modes report additional information beyond a simple list of
+ports, helpful for debugging driver .inf files or the microcontroller
+development board at the other end of the USB connection.
+
+Example output for each listing mode is at the end of this readme.
+
+
+As of version 0.9.1, the available options reported through 'portlist -h' are:
 
 	portlist - COM & LPT port listing utility - version 0.9.1
 			Copyright (c) 2013, 2014 Anthony Naggs
@@ -67,7 +76,13 @@ As of the current public release, version 0.9.1, the available options reported 
 
 I hope you find this program useful, and welcome feedback on bugs & omissions.
 
-As of portlist version 0.9 the program is compiled with Microsoft Visual Studio 2010.
+As of portlist version 0.9 the program is compiled with Microsoft Visual Studio 2010,
+and built for Intel x86 32-bit architecture.
+
+Testing so far (July 2014) has been on Windows XP & Windows 7 systems I have access
+to. The program works well for me, and should additionally work on Windows 2000,
+Windows Vista and Windows 8. Reports of success or failure are welcome.
+
 
 GPL v2 Copyright
 ================
