@@ -1,29 +1,19 @@
-portlist
-========
+# portlist
 
 Port List - lists available (optionally all remembered) COM (serial or modem)
-or LPT (printer) ports on Microsoft Windows 2000, XP, Vista, 7 or 8.
+or LPT (printer) ports on Microsoft Windows 2000 or later (XP, Vista, 7, 8 or 10).
 
+## purpose
 
-One problem with connecting a new USB or Bluetooth to serial or parallel
-device to a PC running Microsoft Windows is that you don't always see the
+One problem with connecting a new USB or Bluetooth (etc..) serial or parallel
+device to a PC running Microsoft Windows is that you do not always see the
 message flash up that tells you the serial or parallel port name. You may
 forget the name, or the name may change if you plug it into a different USB
 port, or the program using the port did not close the port before you
 reconnect the device.
 
 This also affects things that pretend to be a serial or parallel port over
-USB, usually microcontroller development devices such as Arduinos.
-
-I found some programs that claimed to help with this, but they were flawed in
-not finding all my different devices (eg modem, Bluetooth connected devices).
-Or they took a long time by literally trying to open (& then close) tens of
-ports named COM1, COM2, COM3 etc.
-
-Hence this Portlist program, which tries to be fast and comprehensive. It
-finds the available parallel and/or serial ports through querying the registry
-and device setup API. It is also able to find and list all (-a) such ports
-known to Windows, and remembered for devices that are not currently available.
+USB; GPS receivers, or microcontroller development devices such as an Arduino.
 
 Amongst other features the reported list can also be limited to selected USB
 VIDs (Vendor Ids) or VID:PID pairs (Vendor & Product Ids). Long (-l) and
@@ -31,7 +21,7 @@ verbose (-v) modes report additional information beyond a simple list of
 ports, helpful for debugging driver .inf files or the microcontroller
 development board at the other end of the USB connection.
 
-Example output for each listing mode is at the end of this readme.
+Example output for each listing mode is towards the end of this readme.
 
 
 As of version 0.9.1, the available options reported through 'portlist -h' are:
@@ -41,7 +31,7 @@ As of version 0.9.1, the available options reported through 'portlist -h' are:
 
 	portlist comes with ABSOLUTELY NO WARRANTY.
 	This software is free, you are welcome to redistribute it under certain conditions.
-	Type `%s -c' for Copyright, Warranty and distribution details.
+	Type 'portlist -c' for Copyright, Warranty and distribution details.
 	portlist source and binary files are available from:
 			https://github.com/tonynaggs/portlist
 
@@ -79,13 +69,13 @@ I hope you find this program useful, and welcome feedback on bugs & omissions.
 As of portlist version 0.9 the program is compiled with Microsoft Visual Studio 2010,
 and built for Intel x86 32-bit architecture.
 
-Testing so far (July 2014) has been on Windows XP & Windows 7 systems I have access
-to. The program works well for me, and should additionally work on Windows 2000,
-Windows Vista and Windows 8. Reports of success or failure are welcome.
+## Bug reporting
+
+If reporting bugs please indicate which Windows version (200, XP, Vista, 7, 8, or 10) you are using.
+The program is not tested with earlier Windows version, and will probably fail.
 
 
-GPL v2 Copyright
-================
+# GPL v2 Copyright
 
 Limited assignment of rights through the GNU General Public License version 2
 is described below:
@@ -104,17 +94,14 @@ is described below:
     with this program; if not, write to the Free Software Foundation, Inc.,
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-Examples of portlist usage
-==========================
+# Examples of portlist usage
 
 Examples show two Microchip based dev boards connected, a USB Bit Whacker (UBW32)
 with the default Microchip USB to serial VID & PID, and an Aperture Labs
 RFIDler LF prototype. In all these examples the overlong UBW32 is shortened
 when it is displayed, in order to fit on one line.
 
-Normal, brief mode.
-Note that A (Active) column is only shown when -a option is given to include
-remebered as well as active ports in the list.
+**Normal**, brief mode.
 
 	C:\>portlist
 	Port   Friendly name
@@ -123,6 +110,9 @@ remebered as well as active ports in the list.
 
 	2 ports found.
 
+**All** ports (-a option), including names reserved for (currently) unavailable ports.
+Note that this adds the A (Active).
+
 	C:\>portlist -a
 	Port   A Friendly name
 	COM3   A USB Serial (UBW-based) communications port (COM3)
@@ -130,9 +120,9 @@ remebered as well as active ports in the list.
 
 	2 ports found.
 
-Longer 1 line per port mode.
-Note again that A (Active) column is only shown when -a option is given to
-include remembered as well as active ports in the list.
+**Longer** report (-l option), 1 line per port.
+Can be combined with the -a option to include remembered as well as active
+ports in the list, and add the A (active) column.
 
 	C:\>portlist -l
 	Port   Bus    VID  PID  Rev  Friendly name
@@ -142,7 +132,9 @@ include remembered as well as active ports in the list.
 	2 ports found.
 
 
-Verbose mode.
+**Verbose** mode, -v option, finds and reports details useful for debugging whether
+the device is correctly recognised by windows and the correct drivers are installed.
+
 Note that 'Physical Device Object' only exists for ports that are currently
 available.
 
@@ -165,4 +157,18 @@ available.
 			 Location Info: Port_#0001.Hub_#0004
 
 	2 ports found.
+
+# Rationale for writing yet another port listing program
+
+I found some programs that claimed to do this, but they were flawed in some way,
+such as only finding some of my different devices e.g. my modem or Bluetooth connected
+devices were often missed.
+Alternatively I had wait minutes as they literally tried to open (& then close) tens of
+ports named COM1, COM2, COM3 etc ... There are lots of reasons this can take a long time,
+a laptop remembers ports that are in its dock, or a Bluetooth device may be out of rane.
+
+Hence this *portlist* program, which tries to be fast and comprehensive. It finds the 
+available parallel and/or serial ports by querying the Windows registry and using the
+device setup API. It is also able to find and list all (option -a) ports
+that are known to Windows and remembered for devices that are not currently available.
 
