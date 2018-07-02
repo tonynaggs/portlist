@@ -3,7 +3,17 @@
 Port List - lists available (optionally all remembered) COM (serial or modem)
 or LPT (printer) ports on Microsoft Windows 2000 or later (XP, Vista, 7, 8 or 10).
 
-## purpose
+# Table of Contents
+
+  * portlist
+    * [Purpose](#Purpose)
+    * [Bug reporting](#Bug-reporting)
+  * [GPL v2 Copyright](#gpl-v2-copyright)
+  * [Examples of portlist usage](#examples-of-portlist-usage)
+  * [Rationale for another port listing program](#rationale-for-another-port-listing-program)
+
+
+## Purpose
 
 One problem with connecting a new USB or Bluetooth (etc..) serial or parallel
 device to a PC running Microsoft Windows is that you do not always see the
@@ -21,7 +31,7 @@ verbose (-v) modes report additional information beyond a simple list of
 ports, helpful for debugging driver .inf files or the microcontroller
 development board at the other end of the USB connection.
 
-Example output for each listing mode is towards the end of this readme.
+[Examples of portlist usage](#examples-of-portlist-usage) and output for each listing mode are towards the end of this readme.
 
 
 As of version 0.9.1, the available options reported through 'portlist -h' are:
@@ -101,7 +111,7 @@ with the default Microchip USB to serial VID & PID, and an Aperture Labs
 RFIDler LF prototype. In all these examples the overlong UBW32 is shortened
 when it is displayed, in order to fit on one line.
 
-**Normal**, brief mode.
+**_Normal_**, brief mode.
 
 	C:\>portlist
 	Port   Friendly name
@@ -110,7 +120,7 @@ when it is displayed, in order to fit on one line.
 
 	2 ports found.
 
-**All** ports (-a option), including names reserved for (currently) unavailable ports.
+**_All_** ports (-a option), including names reserved for (currently) unavailable ports.
 Note that this adds the A (Active).
 
 	C:\>portlist -a
@@ -120,7 +130,7 @@ Note that this adds the A (Active).
 
 	2 ports found.
 
-**Longer** report (-l option), 1 line per port.
+**_Long_** report (-l option), adds more columns but still 1 line per port.
 Can be combined with the -a option to include remembered as well as active
 ports in the list, and add the A (active) column.
 
@@ -132,7 +142,7 @@ ports in the list, and add the A (active) column.
 	2 ports found.
 
 
-**Verbose** mode, -v option, finds and reports details useful for debugging whether
+**_Verbose_** mode, -v option, finds and reports details useful for debugging whether
 the device is correctly recognised by windows and the correct drivers are installed.
 
 Note that 'Physical Device Object' only exists for ports that are currently
@@ -158,7 +168,7 @@ available.
 
 	2 ports found.
 
-# Rationale for writing yet another port listing program
+# Rationale for another port listing program
 
 I found some programs that claimed to do this, but they were flawed in some way,
 such as only finding some of my different devices e.g. my modem or Bluetooth connected
