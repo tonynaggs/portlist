@@ -6,8 +6,8 @@ or LPT (printer) ports on Microsoft Windows 2000 or later (XP, Vista, 7, 8 or 10
 # Table of Contents
 
   * portlist
-    * [Purpose](#Purpose)
-    * [Bug reporting](#Bug-reporting)
+    * [Purpose](#purpose)
+    * [Bug reporting](#bug-reporting)
   * [GPL v2 Copyright](#gpl-v2-copyright)
   * [Examples of portlist usage](#examples-of-portlist-usage)
   * [Rationale for another port listing program](#rationale-for-another-port-listing-program)
